@@ -4,10 +4,10 @@ name: secagent security remediation
 # Runs on every push and every pull request (scoped to the changed files),
 # plus a weekly full sweep and manual dispatch.
 on:
-  push:
-    branches-ignore:
-      # Never run on the bot's own remediation branches (prevents loops).
-      - 'secagent/**'
+  # push:
+    # branches-ignore:
+    #   # Never run on the bot's own remediation branches (prevents loops).
+    #   - 'secagent/**'
   pull_request:
   workflow_dispatch:
     inputs:
