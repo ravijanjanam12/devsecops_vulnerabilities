@@ -40,10 +40,11 @@ def detect_remote_slug(repo: Repo) -> Optional[str]:
 
 
 class GitRemediationRunner:
-    def __init__(self, root: str, github_token: str = ""):
+    def __init__(self, root: str, github_token: str = None):
         self.root = str(Path(root).resolve())
         self.repo = Repo(self.root)
-        self.github_token = github_token
+        # Use environment variable for GitHub token
+        self.github_token = github_token or os.getenv('GITHUB_TOKEN')
 
     def apply_fixes(self, fixes: List[FileFix]) -> List[str]:
         """Write patched contents to disk. Returns the list of changed paths."""
@@ -76,17 +77,11 @@ class GitRemediationRunner:
 
     def push_branch(self, branch: str) -> None:
         origin = self.repo.remotes.origin
-        # If a token is available, use an authenticated push URL for this call.
-        push_url = origin.url
-        if self.github_token and push_url.startswith("https://"):
-            authed = re.sub(r"https://", f"https://x-access-token:{self.github_token}@", push_url)
-            origin.set_url(authed, push_url)
-            try:
-                origin.push(refspec=f"{branch}:{branch}")
-            finally:
-                origin.set_url(push_url, authed)
-        else:
+        # Use credential helper instead of embedding token in URL
+        try:
             origin.push(refspec=f"{branch}:{branch}")
+        except Exception as e:
+            print(f"Failed to push branch {branch}: {e}")
 
     def open_pull_request(
         self,

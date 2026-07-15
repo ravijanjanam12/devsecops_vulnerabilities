@@ -15,8 +15,8 @@ terraform {
 # Issue: hardcoded cloud credentials in source (CWE-798).
 provider "aws" {
   region     = "us-east-1"
-  access_key = "AKIAIOSFODNN7EXAMPLE"
-  secret_key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+  access_key = var.aws_access_key
+  secret_key = var.aws_secret_key
 }
 
 # Issue: security group opens SSH and all traffic to the entire internet.
@@ -25,19 +25,11 @@ resource "aws_security_group" "web" {
   description = "web sg"
 
   ingress {
-    description = "SSH from anywhere"
+    description = "SSH from specific IP"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    description = "All ports open"
-    from_port   = 0
-    to_port     = 65535
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = ["192.168.1.0/24"]  # Replace with your specific IP range
   }
 
   egress {
@@ -51,7 +43,7 @@ resource "aws_security_group" "web" {
 # Issue: public-read S3 bucket, no encryption, no versioning.
 resource "aws_s3_bucket" "data" {
   bucket = "my-company-super-secret-data"
-  acl    = "public-read"
+  acl    = "private"
 }
 
 # Issue: RDS instance is publicly accessible, unencrypted, with a hardcoded
@@ -62,9 +54,9 @@ resource "aws_db_instance" "app" {
   instance_class      = "db.t3.micro"
   allocated_storage   = 20
   username            = "admin"
-  password            = "SuperSecret123!"
-  publicly_accessible = true
-  storage_encrypted   = false
+  password            = var.db_password
+  publicly_accessible = false
+  storage_encrypted   = true
   skip_final_snapshot = true
 }
 
@@ -77,7 +69,7 @@ resource "aws_iam_policy" "admin" {
     Statement = [
       {
         Effect   = "Allow"
-        Action   = "*"
+        Action   = ["ec2:Describe*", "s3:ListBucket"]  # Example of restricted actions
         Resource = "*"
       }
     ]
@@ -88,7 +80,7 @@ resource "aws_iam_policy" "admin" {
 resource "aws_ebs_volume" "data" {
   availability_zone = "us-east-1a"
   size              = 100
-  encrypted         = false
+  encrypted         = true
 }
 
 # Issue: CloudTrail with log file validation disabled and no encryption.
