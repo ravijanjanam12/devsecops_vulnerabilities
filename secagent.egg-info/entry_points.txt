@@ -1,0 +1,3 @@
+[console_scripts]
+secagent = secagent.cli:app
+secagent-mcp = secagent.mcp_server:main

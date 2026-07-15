@@ -1,3 +1,19 @@
+Metadata-Version: 2.4
+Name: secagent
+Version: 0.1.0
+Summary: Agent that scans a Git repo for security issues with an OpenAI model, auto-remediates them, and opens a PR. Ships a CLI and an MCP server.
+License: MIT
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: openai>=1.40.0
+Requires-Dist: PyGithub>=2.3.0
+Requires-Dist: GitPython>=3.1.43
+Requires-Dist: pydantic>=2.7.0
+Requires-Dist: python-dotenv>=1.0.1
+Requires-Dist: typer>=0.12.0
+Requires-Dist: rich>=13.7.0
+Requires-Dist: mcp>=1.2.0
+
 # secagent
 
 An agent that **scans a Git repository for security issues using an OpenAI model, auto-remediates them, and opens a pull request** with the fixes. It ships as a CLI, an MCP server, and a GitHub Actions workflow.

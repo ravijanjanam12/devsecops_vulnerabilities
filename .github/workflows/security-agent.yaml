@@ -1,0 +1,107 @@
+name: secagent security remediation
+
+# Scans with an OpenAI model, auto-remediates issues, and opens a PR.
+# Runs on every push and every pull request (scoped to the changed files),
+# plus a weekly full sweep and manual dispatch.
+on:
+  push:
+    branches-ignore:
+      # Never run on the bot's own remediation branches (prevents loops).
+      - 'secagent/**'
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      min_severity:
+        description: "Minimum severity to auto-fix"
+        required: false
+        default: "high"
+        type: choice
+        options: ["low", "medium", "high", "critical"]
+      dry_run:
+        description: "Scan and generate fixes without opening a PR"
+        required: false
+        default: false
+        type: boolean
+  schedule:
+    - cron: "0 6 * * 1"  # Mondays at 06:00 UTC (full-repo sweep)
+
+permissions:
+  contents: write
+  pull-requests: write
+
+# Cancel an in-flight run on the same ref if a newer event arrives.
+concurrency:
+  group: secagent-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    # Skip the bot's own remediation PRs so it doesn't remediate itself.
+    if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'secagent/') }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install secagent
+        run: |
+          python -m pip install --upgrade pip
+          pip install .
+
+      - name: Configure git identity
+        run: |
+          git config user.name "secagent[bot]"
+          git config user.email "secagent@users.noreply.github.com"
+
+      - name: Resolve context (base branch + changed files)
+        id: ctx
+        run: |
+          EVENT="${{ github.event_name }}"
+          if [ "$EVENT" = "pull_request" ]; then
+            BASE="${{ github.base_ref }}"
+            git fetch --no-tags --depth=200 origin "$BASE" || true
+            CHANGED=$(git diff --name-only "origin/$BASE"...HEAD 2>/dev/null || true)
+          elif [ "$EVENT" = "push" ]; then
+            BASE="${{ github.ref_name }}"
+            BEFORE="${{ github.event.before }}"
+            if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+              CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || true)
+            else
+              CHANGED=$(git diff --name-only "$BEFORE" "${{ github.sha }}" 2>/dev/null || true)
+            fi
+          else
+            # schedule / workflow_dispatch: full-repo scan
+            BASE="${{ github.ref_name }}"
+            CHANGED=""
+          fi
+          ARGS=""
+          for f in $CHANGED; do
+            [ -f "$f" ] && ARGS="$ARGS --file $f"
+          done
+          echo "base=$BASE" >> "$GITHUB_OUTPUT"
+          echo "args=$ARGS" >> "$GITHUB_OUTPUT"
+          echo "Base: $BASE"
+          echo "Changed file args: ${ARGS:-<full repo>}"
+
+      - name: Run security remediation
+        # For push/PR, only run when files actually changed; schedule/dispatch always run.
+        if: ${{ (github.event_name != 'push' && github.event_name != 'pull_request') || steps.ctx.outputs.args != '' }}
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SECAGENT_MODEL: ${{ vars.SECAGENT_MODEL || 'gpt-4o' }}
+        run: |
+          EXTRA=""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then EXTRA="--dry-run"; fi
+          secagent remediate . \
+            --min-severity "${{ inputs.min_severity || 'high' }}" \
+            --base "${{ steps.ctx.outputs.base }}" \
+            ${{ steps.ctx.outputs.args }} \
+            $EXTRA

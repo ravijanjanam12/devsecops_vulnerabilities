@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "secagent"
+version = "0.1.0"
+description = "Agent that scans a Git repo for security issues with an OpenAI model, auto-remediates them, and opens a PR. Ships a CLI and an MCP server."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "openai>=1.40.0",
+    "PyGithub>=2.3.0",
+    "GitPython>=3.1.43",
+    "pydantic>=2.7.0",
+    "python-dotenv>=1.0.1",
+    "typer>=0.12.0",
+    "rich>=13.7.0",
+    "mcp>=1.2.0",
+]
+
+[project.scripts]
+secagent = "secagent.cli:app"
+secagent-mcp = "secagent.mcp_server:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["secagent*"]
