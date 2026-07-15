@@ -43,7 +43,8 @@ class GitRemediationRunner:
     def __init__(self, root: str, github_token: str = ""):
         self.root = str(Path(root).resolve())
         self.repo = Repo(self.root)
-        self.github_token = github_token
+        # Use environment variable for GitHub token
+        self.github_token = os.getenv('GITHUB_TOKEN', github_token)
 
     def apply_fixes(self, fixes: List[FileFix]) -> List[str]:
         """Write patched contents to disk. Returns the list of changed paths."""
@@ -79,10 +80,11 @@ class GitRemediationRunner:
         # If a token is available, use an authenticated push URL for this call.
         push_url = origin.url
         if self.github_token and push_url.startswith("https://"):
-            authed = re.sub(r"https://", f"https://x-access-token:{self.github_token}@", push_url)
+            # Use a more secure method to authenticate without embedding the token in the URL
+            authed = re.sub(r"https://", "https://x-access-token:", push_url)
             origin.set_url(authed, push_url)
             try:
-                origin.push(refspec=f"{branch}:{branch}")
+                origin.push(refspec=f"{branch}:{branch}", env={'GIT_ASKPASS': 'echo', 'GIT_PASSWORD': self.github_token})
             finally:
                 origin.set_url(push_url, authed)
         else:
