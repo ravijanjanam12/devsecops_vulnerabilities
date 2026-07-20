@@ -40,10 +40,10 @@ def detect_remote_slug(repo: Repo) -> Optional[str]:
 
 
 class GitRemediationRunner:
-    def __init__(self, root: str, github_token: str = ""):
+    def __init__(self, root: str, github_token: str = None):
         self.root = str(Path(root).resolve())
         self.repo = Repo(self.root)
-        self.github_token = github_token
+        self.github_token = github_token or os.getenv('GITHUB_TOKEN')
 
     def apply_fixes(self, fixes: List[FileFix]) -> List[str]:
         """Write patched contents to disk. Returns the list of changed paths."""
